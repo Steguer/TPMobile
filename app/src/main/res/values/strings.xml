@@ -6,6 +6,7 @@
     <string name="action_new_note">New</string>
     <string name="title_activity_list_view_loader">ListViewLoader</string>
     <string name="action">Action</string>
+    <string name="title_activity_note">note</string>
 
     <string-array
         name="string_array_name">
@@ -14,7 +15,4 @@
         <item>Encrypt/Decrypt</item>
         <item>Return</item>
     </string-array>
-
-<!-- TODO: Remove or change this placeholder text -->
-    <string name="hello_blank_fragment">Hello blank fragment</string>
 </resources>
