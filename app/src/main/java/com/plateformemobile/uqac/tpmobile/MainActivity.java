@@ -4,6 +4,7 @@ import android.app.AlertDialog;
 import android.app.Dialog;
 import android.app.DialogFragment;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.os.Environment;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
@@ -177,6 +178,8 @@ public class MainActivity extends ActionBarActivity {
         else if(id == R.id.action_new_note) {
             Toast.makeText(getApplicationContext(), "New", Toast.LENGTH_SHORT).show();
             // Ajouter ici l'intent pour un nouveau fichier
+            Intent intent = new Intent(this, NoteActivity.class);
+            startActivity(intent);
             return true;
         }
 
