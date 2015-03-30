@@ -184,8 +184,6 @@
     <string-array name="insert_image_array">
         <item>Camera</item>
         <item>Gallery</item>
-        <item>Map</item>
-        <item>Webpage</item>
     </string-array>
 
     <string name="insert_image_title">Insert Image</string>

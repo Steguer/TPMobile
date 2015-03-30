@@ -7,7 +7,9 @@ import java.util.Comparator;
 import java.util.List;
 import android.app.ListActivity;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
@@ -20,7 +22,9 @@ public class ListViewLoader extends ListActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Intent i = getIntent();
-        File directory = new File(i.getStringExtra("directory"));
+        SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(ListViewLoader.this);
+        String DEFAULT_APP_DIRECTORY = settings.getString("storageLocation", "/sdcard/Memo");
+        File directory = new File(DEFAULT_APP_DIRECTORY);
         if (directory.isDirectory()){
             File[] files = directory.listFiles();
             //sort in descending date order

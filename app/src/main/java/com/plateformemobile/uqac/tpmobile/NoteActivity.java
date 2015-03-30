@@ -86,7 +86,6 @@ public class NoteActivity extends Activity {
         mFolder = new File(DEFAULT_APP_IMAGEDATA_DIRECTORY);
     }
 
-
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
