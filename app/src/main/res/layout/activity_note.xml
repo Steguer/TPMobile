@@ -69,13 +69,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/save_button" android:contentDescription="Save Button"/>
-        <ImageButton
-
-            android:id="@+id/shareBtn"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/share_button" android:contentDescription="Share Button"/>
-    </LinearLayout>
+            </LinearLayout>
     <RelativeLayout
         android:id="@+id/canvas_container"
         android:layout_width="match_parent"

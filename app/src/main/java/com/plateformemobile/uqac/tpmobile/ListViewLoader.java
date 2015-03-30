@@ -15,6 +15,7 @@ import android.widget.ListView;
 
 public class ListViewLoader extends ListActivity {
     private List<String> directoryEntries = new ArrayList<String>();
+    public static String addLocation="";
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
