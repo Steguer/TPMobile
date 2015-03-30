@@ -18,11 +18,23 @@ import android.widget.Toast;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileReader;
+import java.io.IOException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+
+import javax.crypto.Cipher;
+import javax.crypto.CipherInputStream;
+import javax.crypto.CipherOutputStream;
+import javax.crypto.EncryptedPrivateKeyInfo;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.spec.SecretKeySpec;
 
 
 public class MainActivity extends ActionBarActivity {
@@ -72,6 +84,32 @@ public class MainActivity extends ActionBarActivity {
                                     break;
                                 }
                                 case 2: {
+                                    // Quand on veut encrypter la note
+                                    File fileToEncrypt = new File(path + fileName);
+                                    if(fileToEncrypt.getName().contains(".crypt")) {
+                                        try {
+                                            Encrypt.decrypt(fileToEncrypt);
+                                            fileToEncrypt.delete();
+                                            updateView(directory);
+                                            Toast.makeText(getApplicationContext(), fileToEncrypt.getName() + " decryption succeed", Toast.LENGTH_SHORT).show();
+                                        }
+                                        catch (Exception e) {
+                                            Toast.makeText(getApplicationContext(), "Error with " + fileToEncrypt.getName() + " decryption", Toast.LENGTH_SHORT).show();
+                                        }
+                                    }
+                                    else {
+                                        try {
+                                            Encrypt.encrypt(fileToEncrypt);
+                                            fileToEncrypt.delete();
+                                            updateView(directory);
+                                            Toast.makeText(getApplicationContext(), fileToEncrypt.getName() + " encryption succeed", Toast.LENGTH_SHORT).show();
+                                        } catch (Exception e) {
+                                            Toast.makeText(getApplicationContext(), "Error with " + fileToEncrypt.getName() + " encryption", Toast.LENGTH_SHORT).show();
+                                        }
+                                    }
+                                    break;
+                                }
+                                case 3: {
                                     // Quand on retourne en arrière
                                     break;
                                 }
@@ -143,5 +181,54 @@ public class MainActivity extends ActionBarActivity {
         }
 
         return super.onOptionsItemSelected(item);
+    }
+}
+
+class Encrypt {
+    static void encrypt(File file) throws IOException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
+        // Here you read the cleartext.
+        FileInputStream fis = new FileInputStream(file);
+        // This stream write the encrypted text. This stream will be wrapped by another stream.
+        FileOutputStream fos = new FileOutputStream(file.getAbsolutePath() + ".crypt");
+
+        // Length is 16 byte
+        // Careful when taking user input!!! http://stackoverflow.com/a/3452620/1188357
+        SecretKeySpec sks = new SecretKeySpec("MyDifficultPassw".getBytes(), "AES");
+        // Create cipher
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(Cipher.ENCRYPT_MODE, sks);
+        // Wrap the output stream
+        CipherOutputStream cos = new CipherOutputStream(fos, cipher);
+        // Write bytes
+        int b;
+        byte[] d = new byte[8];
+        while((b = fis.read(d)) != -1) {
+            cos.write(d, 0, b);
+        }
+        // Flush and close streams.
+        cos.flush();
+        cos.close();
+        fis.close();
+    }
+
+    static void decrypt(File file) throws IOException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
+        FileInputStream fis = new FileInputStream(file);
+
+        String tmp = file.getAbsolutePath();
+        tmp = tmp.replace(".crypt", "");
+
+        FileOutputStream fos = new FileOutputStream(tmp);
+        SecretKeySpec sks = new SecretKeySpec("MyDifficultPassw".getBytes(), "AES");
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(Cipher.DECRYPT_MODE, sks);
+        CipherInputStream cis = new CipherInputStream(fis, cipher);
+        int b;
+        byte[] d = new byte[8];
+        while((b = cis.read(d)) != -1) {
+            fos.write(d, 0, b);
+        }
+        fos.flush();
+        fos.close();
+        cis.close();
     }
 }

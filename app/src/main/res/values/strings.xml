@@ -15,6 +15,7 @@
         name="string_array_name">
         <item>Open</item>
         <item>Delete</item>
+        <item>Encrypt/Decrypt</item>
         <item>Return</item>
     </string-array>
 
