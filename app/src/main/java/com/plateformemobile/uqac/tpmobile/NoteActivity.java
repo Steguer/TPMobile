@@ -6,6 +6,13 @@ import android.app.ProgressDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.RectF;
+import android.graphics.Shader;
+import android.graphics.drawable.BitmapDrawable;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -14,15 +21,22 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View.OnClickListener;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.ImageButton;
 
+import com.samsung.samm.common.SObjectImage;
 import com.samsung.sdraw.AbstractSettingView;
 import com.samsung.sdraw.CanvasView;
 import com.samsung.sdraw.SettingView;
 import com.samsung.spensdk.SCanvasView;
 import com.samsung.spensdk.applistener.HistoryUpdateListener;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 
 
 public class NoteActivity extends Activity {
@@ -39,7 +53,10 @@ public class NoteActivity extends Activity {
     boolean isSaved = true;
     boolean autoSaveOnExit = false;
     boolean canGoBack = true;
+    boolean preventScreenLock = false;
+    boolean deleteTempOnExit = false;
     String location = "";
+    String background = "";
     File mFolder = null;
     ProgressDialog progressDialog;
     SharedPreferences settings;
@@ -47,8 +64,10 @@ public class NoteActivity extends Activity {
     String DEFAULT_APP_DIRECTORY = "";
     String DEFAULT_APP_IMAGEDATA_DIRECTORY = DEFAULT_APP_DIRECTORY;
 
-    int CAMERA_REQUEST = 1888;
     int REQUEST_CODE_SELECT_IMAGE_OBJECT = 103;
+    int CAMERA_REQUEST = 1888;
+    int SELECT_PICTURE_BACKGROUND = 1341;
+    int INSERT_IMAGE_FROM_PAGE = 768;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -82,8 +101,23 @@ public class NoteActivity extends Activity {
         mSettingView = (SettingView) findViewById(R.id.setting_view);
         mCanvasView.setSettingView(mSettingView);
         mCanvasView.setHistoryUpdateListener(historyUpdateListener);
-
+        preventScreenLock = settings.getBoolean("preventScreenLock", false);
+        deleteTempOnExit = settings.getBoolean("deleteTempOnExit", false);
         mFolder = new File(DEFAULT_APP_IMAGEDATA_DIRECTORY);
+
+        Bundle extras = getIntent().getExtras();
+        if(extras != null) {
+            if (extras.getString("location")!=null) {
+                location = extras.getString("location");
+                
+            }
+        } else {
+            location = "";
+        }
+
+        if (preventScreenLock) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
     }
 
     @Override
@@ -274,6 +308,7 @@ public class NoteActivity extends Activity {
         mCanvasView.saveSAMMFile(location);
         isSaved = true;
         progressDialog.dismiss();
+        mSaveBtn.setEnabled(isSaved);
     }
 
     ProgressThread progressThread;
@@ -295,6 +330,255 @@ public class NoteActivity extends Activity {
             Message msg = mHandler.obtainMessage();
             mHandler.sendMessage(msg);
         }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode == RESULT_OK) {
+            if (requestCode == INSERT_IMAGE_FROM_PAGE) {
+                String imagePath = (String) data.getExtras().get("file");
+                if (imagePath.length() > 0) {
+                    if(!FileUtilities.bIsValidImagePath(imagePath)) {
+                        return;
+                    }
+                    SObjectImage sImageObject = null;
+                    try {
+                        sImageObject = getImageFromBitmap(BitmapFactory.decodeFile(imagePath), false, true);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    mCanvasView.insertSAMMImage(sImageObject, true);
+                    isSaved = false;
+                    mSaveBtn.setEnabled(true);
+                }
+            } else if (requestCode == SELECT_PICTURE_BACKGROUND) {
+                Uri imageFileUri = data.getData();
+                String path = FileUtilities.getRealPathFromURI(this, imageFileUri);
+                if (path != null && path.length() > 0) {
+                    File file = new File(path);
+                    if (file.exists() ){
+                        Bitmap bitmap2 = BitmapFactory.decodeFile(path);
+                        BitmapDrawable bd2 = new BitmapDrawable(bitmap2);
+                        bd2.setTileModeXY(Shader.TileMode.REPEAT, Shader.TileMode.REPEAT);
+                        mCanvasView.setBackgroundDrawable(bd2);
+                    }
+                }
+            } else if (requestCode == REQUEST_CODE_SELECT_IMAGE_OBJECT) {
+                Uri imageFileUri = data.getData();
+                String imagePath = FileUtilities.getRealPathFromURI(this, imageFileUri);
+                if(!FileUtilities.bIsValidImagePath(imagePath)) {
+                    return;
+                }
+                SObjectImage sImageObject = null;
+                try {
+                    sImageObject = getImageFromBitmap(BitmapFactory.decodeFile(imagePath), false, true);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                mCanvasView.insertSAMMImage(sImageObject, true);
+                isSaved = false;
+                mSaveBtn.setEnabled(true);
+            } else if (requestCode == CAMERA_REQUEST) {
+                Bitmap photo = (Bitmap) data.getExtras().get("data");
+                try {
+                    File mFolder = new File(DEFAULT_APP_DIRECTORY + "/.temp");
+                    mFolder.mkdirs();
+                    String filename = mFolder.getPath() + '/' + FileUtilities.getUniqueFilename(mFolder, "temp", "png");
+                    FileOutputStream out = new FileOutputStream(filename);
+                    photo.compress(Bitmap.CompressFormat.PNG, 100, out);
+                    String imagePath = filename;
+                    if(!FileUtilities.bIsValidImagePath(imagePath)) {
+                        return;
+                    }
+                    SObjectImage sImageObject = null;
+                    try {
+                        sImageObject = getImageFromBitmap(photo, false, true);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    mCanvasView.insertSAMMImage(sImageObject, true);
+                    isSaved = false;
+                    mSaveBtn.setEnabled(true);
+                    File a = new File(filename);
+                    a.delete();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            } else {
+                loadCanvas(data.getExtras().getString("filename"));
+            }
+        }
+    }
+
+    public boolean loadCanvas(String fileName) {
+        String loadPath = mFolder.getPath() + '/' + fileName;
+        byte[] buffer = FileUtilities.readBytedata(loadPath);
+        if (buffer == null) {
+            return false;
+        }
+        mCanvasView.setData(buffer);
+        return true;
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (deleteTempOnExit) {
+            File temp = new File(DEFAULT_APP_DIRECTORY + "/.temp");
+            if (temp.exists()) {
+                for (File file : temp.listFiles()) {
+                    file.delete();
+                }
+                temp.delete();
+            }
+        }
+        if (preventScreenLock) {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
+        mCanvasView.closeSAMMLibrary();
+    }
+
+    Bitmap generateBackgroundTile() {
+        return generateBackgroundTile(settings.getInt("backgroundType", 0), settings.getInt("backgroundTileSize", 20), settings.getInt("backgroundColour", 0));
+    }
+    Bitmap generateBackgroundTile(int backgroundType, int backgroundTileSize, int backgroundColour) {
+        int[] colours = new int[backgroundTileSize * backgroundTileSize];
+        int i = 0;
+        switch (backgroundType) {
+            case 0:
+                for (i = 0; i < colours.length; i++) {
+                    colours[i] = backgroundColour;
+                }
+                break;
+            case 1:
+                i = 0;
+                for (int x = 0; x < backgroundTileSize; x++) {
+                    for (int y = 0; y < backgroundTileSize; y++) {
+                        if (x < backgroundTileSize - 1 && y < backgroundTileSize - 1) {
+                            colours[i] = backgroundColour;
+                        } else {
+                            int colour = Color.red(backgroundColour)+Color.green(backgroundColour)+Color.blue(backgroundColour);
+                            if (colour < 384 && colour > 0) {
+                                colours[i] = Color.WHITE;
+                            } else {
+                                colours[i] = Color.BLACK;
+                            }
+                        }
+                        i++;
+                    }
+                }
+                break;
+            case 2:
+                i = 0;
+                for (int x = 0; x < backgroundTileSize; x++) {
+                    for (int y = 0; y < backgroundTileSize; y++) {
+                        if (x < backgroundTileSize - 1) {
+                            colours[i] = backgroundColour;
+                        } else {
+                            int colour = Color.red(backgroundColour)+Color.green(backgroundColour)+Color.blue(backgroundColour);
+                            if (colour < 384 && colour > 0) {
+                                colours[i] = Color.WHITE;
+                            } else {
+                                colours[i] = Color.BLACK;
+                            }
+                        }
+                        i++;
+                    }
+                }
+                break;
+        }
+        return Bitmap.createBitmap(colours, backgroundTileSize, backgroundTileSize, Bitmap.Config.ARGB_8888);
+    }
+
+    private SObjectImage getImageFromBitmap(final Bitmap bitmap, final boolean compression, final boolean scaleToCanvas) throws IOException {
+        int imageWidth = bitmap.getWidth();
+        int imageHeight = bitmap.getHeight();
+        final SObjectImage image = new SObjectImage();
+        RectF rect;
+        int canvasWidth = mCanvasView.getWidth();
+        int canvasHeight = mCanvasView.getHeight();
+        if (scaleToCanvas) {
+            if (imageWidth > 600) {
+                imageWidth = 600;
+                imageHeight /= imageWidth / 600;
+            }
+            if (imageHeight > 800) {
+                imageHeight = 800;
+                imageWidth /= imageHeight / 800;
+            }
+        }
+        rect = new RectF((canvasWidth - imageWidth) / 2, (canvasHeight - imageHeight) / 2, (canvasWidth - imageWidth) / 2 + imageWidth, (canvasHeight - imageHeight) / 2 + imageHeight);
+        image.setRect(rect);
+        if (compression) {
+            image.setImagePath(compressBitmap(bitmap).getAbsolutePath());
+        } else {
+            image.setImageBitmap(bitmap);
+        }
+        return image;
+    }
+
+    private File compressBitmap(final Bitmap bitmap) throws IOException {
+        File mFolder = new File(DEFAULT_APP_DIRECTORY + "/.temp");
+        if (!(mFolder.exists())) {
+            mFolder.mkdirs();
+        }
+        String filename = mFolder.getPath() + '/' + FileUtilities.getUniqueFilename(mFolder, "image", "png");
+        File file = new File(filename);
+        OutputStream output = null;
+        try {
+            output = new BufferedOutputStream(new FileOutputStream(file));
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output);
+        } finally {
+            if (output != null) {
+                output.close();
+            }
+        }
+        return file;
+    }
+
+    /*@Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+
+        if (!background.equals("")) {
+            SObjectImage sImageObject = null;
+            try {
+                sImageObject = getImageFromBitmap(BitmapFactory.decodeFile(background), false, true);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            mCanvasView.insertSAMMImage(sImageObject, true);
+            background = "";
+            isSaved = false;
+            mSaveBtn.setEnabled(true);
+        } else if (!loadSAMMFile(location)) {
+            java.io.FileInputStream in = null;
+            try {
+                in = new java.io.FileInputStream(location);
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            }
+            mCanvasView.setBackgroundImage(BitmapFactory.decodeStream(in));
+            isSaved = false;
+            mSaveBtn.setEnabled(true);
+        }
+
+        //LoadBackground();
+    }*/
+
+    boolean loadSAMMFile(String strFileName){
+        if (mCanvasView != null && !mCanvasView.isAnimationMode()) {
+            return mCanvasView.loadSAMMFile(strFileName, true, true, false);
+        }
+        return true;
+    }
+
+    public void LoadBackground() {
+        Bitmap bitmap = generateBackgroundTile();
+        BitmapDrawable bd = new BitmapDrawable(bitmap);
+        bd.setTileModeXY(Shader.TileMode.REPEAT, Shader.TileMode.REPEAT);
+        mCanvasView.setBackgroundDrawable(bd);
     }
 
 }

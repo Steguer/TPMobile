@@ -3,22 +3,28 @@ package com.plateformemobile.uqac.tpmobile;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.app.DialogFragment;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Environment;
+import android.preference.PreferenceManager;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.BaseAdapter;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
@@ -46,25 +52,28 @@ public class MainActivity extends ActionBarActivity {
     private List<String> directoryEntries = new ArrayList<String>();
     private ListView listLayout;
 
+    private String path;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
         // Chemin absolu vers le répertoire de travail + CAMERA_PIC_DIR
-        final String path = "/storage/sdcard0" + CAMERA_PIC_DIR;
+        SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
+        String DEFAULT_APP_DIRECTORY = settings.getString("storageLocation", "/sdcard/Memo");
+        path = DEFAULT_APP_DIRECTORY;
         final File directory = new File(path);
 
         // Si on pointe bien vers un répertoire
         if (directory.isDirectory()) {
-
             // Mise à jour de la liste affiché
             updateView(directory);
             // Gérer la sélection d'un item dans la liste
             listLayout.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 @Override
                 public void onItemClick(AdapterView<?> parent, final View view, int position, long id) {
-                    final String fileName = directoryEntries.get((int)id);
+                    final String fileName = directoryEntries.get((int) id);
                     final CharSequence[] items = getResources().getStringArray(R.array.string_array_name);
                     AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
                     builder.setTitle(getString(R.string.action));
@@ -75,6 +84,9 @@ public class MainActivity extends ActionBarActivity {
                             switch (item) {
                                 case 0: {
                                     // Quand on ouvre le fichier
+                                    Intent intent = new Intent(getApplicationContext(), NoteActivity.class);
+                                    intent.putExtra("location", path+"/"+fileName);
+                                    startActivity(intent);
                                     break;
                                 }
                                 case 1: {
@@ -87,18 +99,16 @@ public class MainActivity extends ActionBarActivity {
                                 case 2: {
                                     // Quand on veut encrypter la note
                                     File fileToEncrypt = new File(path + fileName);
-                                    if(fileToEncrypt.getName().contains(".crypt")) {
+                                    if (fileToEncrypt.getName().contains(".crypt")) {
                                         try {
                                             Encrypt.decrypt(fileToEncrypt);
                                             fileToEncrypt.delete();
                                             updateView(directory);
                                             Toast.makeText(getApplicationContext(), fileToEncrypt.getName() + " decryption succeed", Toast.LENGTH_SHORT).show();
-                                        }
-                                        catch (Exception e) {
+                                        } catch (Exception e) {
                                             Toast.makeText(getApplicationContext(), "Error with " + fileToEncrypt.getName() + " decryption", Toast.LENGTH_SHORT).show();
                                         }
-                                    }
-                                    else {
+                                    } else {
                                         try {
                                             Encrypt.encrypt(fileToEncrypt);
                                             fileToEncrypt.delete();
@@ -118,9 +128,7 @@ public class MainActivity extends ActionBarActivity {
                             // Mettre ici les différentes action a éffectuer
                         }
                     });
-
                     AlertDialog alert = builder.create();
-
                     //display dialog box
                     alert.show();
                 }
@@ -128,9 +136,20 @@ public class MainActivity extends ActionBarActivity {
         }
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        updateView(new File(path));
+    }
+
     void updateView(File directory) {
         if (directory.isDirectory()) {
-            File[] files = directory.listFiles();
+            File[] files = directory.listFiles(new FileFilter() {
+                @Override
+                public boolean accept(File file) {
+                    return !file.isHidden();
+                }
+            });
             // Tris dans l'ordre décroissant de la date
             Arrays.sort(files, new Comparator<File>() {
                 public int compare(File f1, File f2) {
@@ -149,12 +168,10 @@ public class MainActivity extends ActionBarActivity {
             final ArrayAdapter<String> directoryList
                     = new ArrayAdapter<String>(this,
                     android.R.layout.simple_list_item_1, this.directoryEntries);
-
             listLayout = (ListView) findViewById(R.id.noteList);
             listLayout.setAdapter(directoryList);
         }
     }
-
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -174,8 +191,7 @@ public class MainActivity extends ActionBarActivity {
         if (id == R.id.action_settings) {
             Toast.makeText(getApplicationContext(), "Setting", Toast.LENGTH_SHORT).show();
             return true;
-        }
-        else if(id == R.id.action_new_note) {
+        } else if (id == R.id.action_new_note) {
             Toast.makeText(getApplicationContext(), "New", Toast.LENGTH_SHORT).show();
             // Ajouter ici l'intent pour un nouveau fichier
             Intent intent = new Intent(this, NoteActivity.class);
@@ -205,7 +221,7 @@ class Encrypt {
         // Write bytes
         int b;
         byte[] d = new byte[8];
-        while((b = fis.read(d)) != -1) {
+        while ((b = fis.read(d)) != -1) {
             cos.write(d, 0, b);
         }
         // Flush and close streams.
@@ -227,7 +243,7 @@ class Encrypt {
         CipherInputStream cis = new CipherInputStream(fis, cipher);
         int b;
         byte[] d = new byte[8];
-        while((b = cis.read(d)) != -1) {
+        while ((b = cis.read(d)) != -1) {
             fos.write(d, 0, b);
         }
         fos.flush();
